@@ -1,0 +1,5 @@
+# Ignores the .vscode directory
+.vscode/
+
+# Ignores the build directory
+build/
