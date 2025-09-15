@@ -1,3 +1,0 @@
-/home/s101113328/courses/homework1/build/CMakeFiles/CMakeLists.txt.dir
-/home/s101113328/courses/homework1/build/CMakeFiles/edit_cache.dir
-/home/s101113328/courses/homework1/build/CMakeFiles/rebuild_cache.dir
