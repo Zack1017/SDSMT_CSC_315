@@ -32,11 +32,17 @@ class Graph
         pair<long long,vector<tuple<int,int,long long>>> kruskalMST() const;
 
         void writeDOT(const string& filename,const string& title="",bool includeWeights=true) const;
-        static Graph readDOT(const string& filename);
+        static Graph readDirectedDOT(const std::string& filename, bool labelIsCapacity=false);
+        static Graph readUndirectedDOT(const std::string& filename);
         void writeLastFlowDOT(const string& filename) const;
 
         static vector<int> restorePath(int s,int t,const vector<int>& par);
         static void printPath(const vector<int>& path);
+        std::pair<std::vector<long long>, std::vector<int>> dialSSSP(int s, int maxW) const;
+        std::vector<int> fleuryEulerTrailOrCircuit() const;
+        void printEulerResult() const; 
+
+
 
     private:
         int n_; bool directed_; vector<vector<Edge>> adj_;

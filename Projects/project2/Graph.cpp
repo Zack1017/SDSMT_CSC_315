@@ -606,56 +606,96 @@ void Graph::writeDOT(const string& filename, const string& title, bool includeWe
     out << "}\n";
 }
 
-
-
-// Extract integer after "label=" (quoted or not). Returns 1 if not found.
+// --- helper (only include if you don't already have it) ---
 static long long extract_label_weight(const std::string& attrs) {
-    size_t p = attrs.find("label");
-    if (p == std::string::npos) return 1;
-    p = attrs.find('=', p);
-    if (p == std::string::npos) return 1;
-    ++p;
-    while (p < attrs.size() && std::isspace((unsigned char)attrs[p])) ++p;
-    if (p < attrs.size() && (attrs[p] == '"' || attrs[p] == '\'')) ++p;
-    bool neg = false;
-    if (p < attrs.size() && (attrs[p] == '-' || attrs[p] == '+')) { neg = attrs[p] == '-'; ++p; }
-    long long val = 0; bool any=false;
-    while (p < attrs.size() && std::isdigit((unsigned char)attrs[p])) { any=true; val = val*10 + (attrs[p]-'0'); ++p; }
-    if (!any) return 1;
-    return neg ? -val : val;
+    // Finds: label=NUMBER (quoted or not), returns 1 if not found
+    std::regex labRe(R"(label\s*=\s*\"?(-?\d+)\"?)");
+    std::smatch m;
+    if (std::regex_search(attrs, m, labRe)) return std::stoll(m[1]);
+    return 1;
 }
 
-Graph Graph::readDOT(const string& filename) {
-    ifstream in(filename);
-    if (!in) throw runtime_error("Cannot open " + filename);
+Graph Graph::readDirectedDOT(const std::string& filename, bool labelIsCapacity)
+{
+    std::ifstream in(filename);
+    if (!in) throw std::runtime_error("Cannot open " + filename);
 
-    string content((istreambuf_iterator<char>(in)), istreambuf_iterator<char>());
-    bool directed = content.find("digraph") != string::npos;
+    std::string content((std::istreambuf_iterator<char>(in)),
+                         std::istreambuf_iterator<char>());
 
-    Graph g(0, directed);
+    // Force directed graph
+    Graph g(0, /*directed=*/true);
 
-    // ... your robust edge regex that captures attribute list and extracts label ...
+    // Match:  u -> v [ ...attrs... ]
+    // Capture the full attr block so we can extract label even with extra attrs.
+    // [^\]]* is used so it can span spaces/newlines until the closing ']'.
+    std::regex edgeRe(R"(([0-9]+)\s*->\s*([0-9]+)\s*(?:\[([^\]]*)\])?)");
 
-    std::regex edgeRe(R"(([0-9]+)\s*(->|--)\s*([0-9]+)\s*(\[([^\]]*)\])?)");
-    auto it = std::sregex_iterator(content.begin(), content.end(), edgeRe), ed = std::sregex_iterator();
-    for (; it != ed; ++it) {
-        int u = stoi((*it)[1]);
-        int v = stoi((*it)[3]);
+    // Optional: avoid exact duplicate edges (same u,v,label)
+    std::set<std::tuple<int,int,long long>> seen;
 
-        // If undirected, only add once (let addEdge create the reverse).
-        if (!directed && u > v) continue;
+    for (std::sregex_iterator it(content.begin(), content.end(), edgeRe), ed; it != ed; ++it) {
+        int u = std::stoi((*it)[1]);
+        int v = std::stoi((*it)[2]);
 
-        long long val = 1;
-        if ((*it)[5].matched) {
-            const string attrs = (*it)[5].str();
-            val = extract_label_weight(attrs); // your helper
+        long long val = 1; // default if no label present
+        if ((*it)[3].matched) {
+            const std::string attrs = (*it)[3].str();
+            val = extract_label_weight(attrs);
         }
 
-        // If this DOT is a flow graph, call addEdge(u,v,0,val); otherwise addEdge(u,v,val);
-        g.addEdge(u, v, val);  // or g.addEdge(u,v,0,val) when label is capacity
+        // Deduplicate identical lines (optional but handy for DOT exports with repeats)
+        auto key = std::make_tuple(u, v, val);
+        if (!seen.insert(key).second) continue;
+
+        if (labelIsCapacity) {
+            // For flow graphs: label is CAPACITY; weight is unused (set 0)
+            g.addEdge(u, v, /*w=*/0, /*cap=*/val);
+        } else {
+            // For weighted directed graphs: label is WEIGHT
+            g.addEdge(u, v, /*w=*/val);
+        }
     }
+
     return g;
 }
+
+
+Graph Graph::readUndirectedDOT(const string& filename)
+{
+    ifstream in(filename);
+    if(!in)
+        throw runtime_error("Cannot open " + filename);
+
+    string content((istreambuf_iterator<char>(in)), istreambuf_iterator<char>());
+    Graph g(0, false); // undirected = false
+
+    // regex to match: u -- v [label="w"]
+    regex edgeRe(R"(([0-9]+)\s*--\s*([0-9]+)\s*(?:\[\s*label\s*=\s*\"?(-?[0-9]+)\"?\s*\])?)");
+    auto it = sregex_iterator(content.begin(), content.end(), edgeRe);
+    auto end = sregex_iterator();
+
+    set<pair<int,int>> seen; // to avoid duplicates like 1--0 after adding 0--1
+
+    for(; it != end; ++it)
+    {
+        int u = stoi((*it)[1]);
+        int v = stoi((*it)[2]);
+        long long w = (*it)[3].matched ? stoll((*it)[3]) : 1;
+
+        // enforce ordering (smaller first) to avoid reverse duplicates
+        pair<int,int> key = (u < v) ? make_pair(u,v) : make_pair(v,u);
+
+        if(seen.count(key)) 
+            continue;
+
+        seen.insert(key);
+        g.addEdge(u, v, w);
+    }
+
+    return g;
+}
+
 
 
 
@@ -768,3 +808,157 @@ size_t Graph::edgesCount() const
     } 
     return c;
 }
+
+std::pair<std::vector<long long>, std::vector<int>>
+Graph::dialSSSP(int s, int maxW) const
+{
+    const long long INF = (1LL<<60);
+    std::vector<long long> dist(n_, INF);
+    std::vector<int> parent(n_, -1);
+    if (s < 0 || s >= n_) return {dist, parent};
+    if (maxW <= 0) return {dist, parent}; // requires positive integer weights
+
+    // Upper bound on smallest distances; K buckets (circular array not required here)
+    int K = std::max(1, maxW * std::max(1, n_ - 1) + 1);
+    std::vector<std::vector<int>> B(K);
+
+    dist[s] = 0;
+    B[0].push_back(s);
+    int bucket = 0;
+    int settled = 0;
+
+    while (settled < n_) {
+        while (bucket < K && B[bucket].empty()) ++bucket;
+        if (bucket >= K) break;
+
+        int u = B[bucket].back();
+        B[bucket].pop_back();
+
+        if (dist[u] != bucket) continue;  // stale entry
+        ++settled;
+
+        for (const auto& e : adj_[u]) if (e.cap < 0) { // normal (non-flow) edges
+            if (e.w < 0 || e.w > maxW) continue;      // Dial requires 0..maxW
+            long long nd = dist[u] + e.w;
+            if (nd < dist[e.to]) {
+                dist[e.to] = nd;
+                parent[e.to] = u;
+                if (nd < K) B[(int)nd].push_back(e.to);
+            }
+        }
+    }
+    return {dist, parent};
+}
+
+std::vector<int> Graph::fleuryEulerTrailOrCircuit() const
+{
+    if (directed_) throw std::runtime_error("Fleury requires an undirected graph");
+
+    // Build multigraph from normal edges (cap<0). Insert each undirected edge once.
+    std::vector<std::multiset<int>> g(n_);
+    int m = 0;
+    for (int u = 0; u < n_; ++u) {
+        for (const auto& e : adj_[u]) if (e.cap < 0) {
+            int v = e.to;
+            if (u <= v) { g[u].insert(v); g[v].insert(u); ++m; }
+        }
+    }
+    if (m == 0) return {};
+
+    auto firstNonIso = [&]()->int{
+        for (int i=0;i<n_;++i) if (!g[i].empty()) return i;
+        return -1;
+    };
+
+    // Connectivity check on non-isolated vertices
+    {
+        int s = firstNonIso();
+        if (s == -1) return {};
+        std::vector<char> vis(n_);
+        std::stack<int> st; st.push(s); vis[s]=1;
+        while (!st.empty()) {
+            int u = st.top(); st.pop();
+            for (int v : g[u]) if (!vis[v]) { vis[v]=1; st.push(v); }
+        }
+        for (int i=0;i<n_;++i) {
+            if (!g[i].empty() && !vis[i]) return {}; // disconnected positive-degree component
+        }
+    }
+
+    // Count odd degrees
+    auto deg = [&](int x){ return (int)g[x].size(); };
+    int oddCnt=0, start=-1;
+    for (int i=0;i<n_;++i) if (deg(i)%2) { ++oddCnt; if (start==-1) start=i; }
+    if (!(oddCnt==0 || oddCnt==2)) return {};
+    if (start==-1) start = firstNonIso();
+
+    // Helpers
+    auto reachable_count = [&](int src){
+        std::vector<char> vis(n_);
+        std::stack<int> st; st.push(src); vis[src]=1;
+        int cnt=0;
+        while (!st.empty()){
+            int u = st.top(); st.pop(); ++cnt;
+            // iterate over a snapshot to avoid iterator invalidation during checks
+            std::vector<int> nbrs(g[u].begin(), g[u].end());
+            for (int v : nbrs) if (!vis[v]) { vis[v]=1; st.push(v); }
+        }
+        return cnt;
+    };
+
+    auto isBridge = [&](int u,int v){
+        if ((int)g[u].size()==1) return false; // only choice -> not a bridge
+        int before = reachable_count(u);
+        // remove u-v
+        auto ituv = g[u].find(v); auto itvu = g[v].find(u);
+        if (ituv==g[u].end() || itvu==g[v].end()) return false;
+        g[u].erase(ituv); g[v].erase(itvu);
+        int after  = reachable_count(u);
+        // restore
+        g[u].insert(v); g[v].insert(u);
+        return (after < before);
+    };
+
+    std::vector<int> trail; trail.reserve(m+1);
+    int u = start, remaining = m;
+    while (remaining > 0) {
+        // snapshot neighbors (avoid mutating while iterating)
+        std::vector<int> nbrs(g[u].begin(), g[u].end());
+
+        int chosen = -1;
+        // Prefer a non-bridge if possible
+        for (int v : nbrs) {
+            if (!isBridge(u,v)) { chosen = v; break; }
+        }
+        if (chosen == -1) {
+            // All are bridges; take the first available
+            if (nbrs.empty()) return {}; // stranded (shouldn't happen in valid Euler case)
+            chosen = nbrs[0];
+        }
+
+        // remove the chosen edge u-chosen
+        auto ituv = g[u].find(chosen);
+        auto itvu = g[chosen].find(u);
+        g[u].erase(ituv); g[chosen].erase(itvu);
+        --remaining;
+
+        trail.push_back(u);
+        u = chosen;
+    }
+    trail.push_back(u);
+    return trail;
+}
+
+
+
+
+void Graph::printEulerResult() const {
+    auto seq = fleuryEulerTrailOrCircuit();
+    if (seq.empty()) { std::cout << "The graph does not have an Euler trail or circuit.\n"; return; }
+    bool isCircuit = (seq.front() == seq.back());
+    std::cout << "The graph has an Euler " << (isCircuit ? "circuit" : "trail") << ".\n";
+    for (size_t i = 0; i < seq.size(); ++i) { if (i) std::cout << "->"; std::cout << seq[i]; }
+    std::cout << "\n";
+}
+ 
+

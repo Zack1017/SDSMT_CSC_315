@@ -9,39 +9,34 @@ cin.tie(nullptr);
 // ----- Test Graph 1 (D requirements) -----
 cout << "----- Test Graph 1 -----\n";
 Graph g1(7, true); // directed unweighted
-g1.addEdge(0,1); 
-g1.addEdge(0,2); 
-g1.addEdge(0,3); 
-g1.addEdge(1,3); 
-g1.addEdge(1,4); 
-g1.addEdge(2,5); 
-g1.addEdge(3,2); 
-g1.addEdge(3,5); 
-g1.addEdge(3,6); 
-g1.addEdge(4,3); 
-g1.addEdge(4,6); 
+g1.addEdge(0,1);
+g1.addEdge(0,2);
+g1.addEdge(0,3);
+g1.addEdge(1,3);
+g1.addEdge(1,4);
+g1.addEdge(2,5);
+g1.addEdge(3,2);
+g1.addEdge(3,5);
+g1.addEdge(3,6);
+g1.addEdge(4,3);
+g1.addEdge(4,6);
 g1.addEdge(6,5);
 
 
 // Topological sort (will throw if cyclic). For this graph it should be a DAG per example.
-try
-{
-    auto topo = g1.topoSort();
-    cout << "The following is a Topological Sort of the graph: ";
-    for(size_t i=0;i<topo.size();++i)
+
+auto topo = g1.topoSort();
+cout << "The following is a Topological Sort of the graph: " ;
+
+    for(int  i=0;i<topo.size();++i)
     { 
-        if(i) 
+        if(i >-1) 
         {
             cout << ' '; 
             cout << topo[i]; 
         }
     } 
         cout << "\n";
-}
-catch(const exception&)
-{ 
-    cout << "Graph has cycles; no topological order\n"; 
-}
 
 
 cout << (g1.hasPathBFS(0,4)?"There is a path from 0 to 4\n":"There is no path from 0 to 4\n");
@@ -65,9 +60,19 @@ cout << "------------------------\n\n";
 
 // ----- Test Graph 2 (C: cycle detection + BFS distances from 1 on an undirected graph with cycles) -----
 cout << "----- Test Graph 2 -----\n";
-Graph g2(8, true); // directed to allow cycles; we can create a cyclic digraph
-// Build a small cyclic directed graph loosely matching the spirit of example
-g2.addEdge(1,2); g2.addEdge(2,5); g2.addEdge(1,4); g2.addEdge(4,3); g2.addEdge(3,2); g2.addEdge(4,6); g2.addEdge(4,7);
+Graph g2(8, true); 
+g2.addEdge(1,2); 
+g2.addEdge(1,4);
+g2.addEdge(2,5); 
+g2.addEdge(2,4);
+g2.addEdge(3,1);
+g2.addEdge(3,6);
+g2.addEdge(4,5);
+g2.addEdge(4,7);
+g2.addEdge(4,6);
+g2.addEdge(4,3);
+g2.addEdge(5,7);
+g2.addEdge(7,6);         
 auto cyc = g2.findCycleDirected();
 cout << (cyc.first?"The graph contains one or more cycles\n":"The graph is acyclic\n");
 auto [dist2, par2] = g2.unweightedSSSP(1);
@@ -83,21 +88,17 @@ Graph g3(7,true);
 
 g3.addEdge(0,1,2);
 g3.addEdge(0,3,1);
-g3.addEdge(0,2,4);
-
 g3.addEdge(1,3,3);
 g3.addEdge(1,4,10);
-
+g3.addEdge(2,0,4);
+g3.addEdge(2,5,15);
 g3.addEdge(3,4,2);
 g3.addEdge(3,6,4);
 g3.addEdge(3,5,8);
-
+g3.addEdge(3,2,2); 
 g3.addEdge(4,6,6);
 g3.addEdge(6,5,1);
-
-g3.addEdge(3,2,2); 
-g3.addEdge(2,5,15);  
-
+  
 cout << "Dijkstra's algorithm for shortest path\n";
 auto [d3, par3] = g3.dijkstra(0);
 cout << "Distance from 0 to:\n";
@@ -148,15 +149,11 @@ Graph g4(6, true);
 // use addEdge(u, v, /*w=*/0, /*cap=*/C)
 g4.addEdge(0,1,0,4);
 g4.addEdge(0,2,0,1);
-
-g4.addEdge(1,2,0,0); // zero-cap edge is fine
+g4.addEdge(1,2,0,0); 
 g4.addEdge(1,3,0,2);
 g4.addEdge(1,4,0,2);
-
 g4.addEdge(2,4,0,1);
-
 g4.addEdge(3,5,0,2);
-
 g4.addEdge(4,5,0,3);
 
 long long maxflow = g4.maxFlowEdmondsKarp(0,5);
@@ -167,16 +164,15 @@ cout << "(Wrote g4.dot)\n";
 cout << "------------------------\n\n";
 
 Graph g4b(6, true);
-g4b = Graph::readDOT("../data/Flow_Graph.dot");
+g4b = Graph::readDirectedDOT("../data/i_fg.dot");
 maxflow = g4b.maxFlowEdmondsKarp(0,5);
 cout << "The maximum flow between 0 and 5 is: " << maxflow << "\n";
 g4b.writeLastFlowDOT("g4b.dot");
 cout << "(Wrote g4b.dot)\n";
 
 
-// ----- B: Prim & Kruskal (MST) using g3 -----
 Graph g5(7, true);
-g5 = Graph::readDOT("../data/LR_Graph.dot");
+g5 = Graph::readUndirectedDOT("../data/prim.dot");
 cout << "----- Test Graph 5 -----\n";
 cout << "Prim's algorithm for Minimum Spanning Tree\n";
 try{
@@ -191,10 +187,29 @@ cout << "------------------------\n\n";
 g5.writeDOT("g5.dot");
 
 
-// Examples Run 
+Graph g6 = Graph::readDirectedDOT("../data/g3.dot", /*labelIsCapacity=*/false);
 
-//Test 1 Graph 
+cout << "Dial's algorithm for shortest path\n";
+cout << "Vertex\tDistance from Source\n";
+
+int maxW = 10; // or whatever the max edge weight is for this test
+auto [distDial, parDial] = g6.dialSSSP(0, maxW);
+
+for (int i = 0; i < g6.V(); ++i) {
+    if (distDial[i] >= (1LL<<59)) 
+        cout << i << ":\t" << "INF\n";
+    else
+        cout << i << ":\t" << distDial[i] << "\n";
+}
+Graph g7 = Graph::readUndirectedDOT("../data/e1.dot");
+
+g7.printEulerResult();
+
+Graph g8 = Graph::readUndirectedDOT("../data/e2.dot");
+
+g8.printEulerResult();
 
 
 return 0;
 }
+ 
