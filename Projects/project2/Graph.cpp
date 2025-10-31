@@ -1,7 +1,6 @@
 #include "Graph.h"
 using namespace std;
 
-// Local Disjoint-Set (Union-Find) for Kruskal
 namespace 
 {
     struct DisjointSet 
@@ -45,8 +44,13 @@ namespace
 
 
 
-// ===== Constructors =====
-Graph::Graph(int n, bool directed): n_(n), directed_(directed) { adj_.assign(n_, {}); }
+Graph::Graph(int n, bool directed): n_(n), directed_(directed) 
+{ 
+    adj_.assign(n_, {}); 
+}
+
+
+
 int Graph::V() const 
 { 
     return n_; 
@@ -77,7 +81,7 @@ void Graph::addEdge(int u, int v, long long w, optional<long long> cap)
     ensureVertex(max(u,v));
     if(cap.has_value())
     {
-        // Flow edge maintain reverse indices for residuals
+        // Flow edge 
         Edge a{v, w, *cap, (int)adj_[v].size()};
         Edge b{u, 0, 0, (int)adj_[u].size()};
         adj_[u].push_back(a);
@@ -95,7 +99,6 @@ void Graph::addEdge(int u, int v, long long w, optional<long long> cap)
 
 
 
-// ===== D: DFS/BFS path existence =====
 bool Graph::hasPathDFS(int s, int t) const
 {
     if(s<0||t<0||s>=n_||t>=n_)
@@ -168,7 +171,6 @@ bool Graph::hasPathBFS(int s, int t) const
 
 
 
-// ===== D: Cycle finding on directed graphs =====
 pair<bool, vector<int>> Graph::findCycleDirected() const
 {
     vector<int> color(n_,0), par(n_,-1), cyc; 
@@ -212,18 +214,20 @@ pair<bool, vector<int>> Graph::findCycleDirected() const
     {
         return {false,{}};
     } 
+
     cyc.push_back(start); 
+
     for(int v=end; v!=start; v=par[v])
     {
         cyc.push_back(v);
     }  
+
     reverse(cyc.begin(), cyc.end());
     return {true, cyc};
 }
 
 
 
-// ===== D: Topological sort (Kahn) =====
 vector<int> Graph::topoSort() const
 {
     vector<int> indeg(n_,0);
@@ -263,16 +267,17 @@ vector<int> Graph::topoSort() const
             }
         }
     }
+
     if((int)order.size()!=n_)
     {
         throw runtime_error("Graph has cycles; topological sort undefined");
     } 
+
     return order;
 }
 
 
 
-// ===== D: Unweighted SSSP (BFS) =====
 pair<vector<int>, vector<int>> Graph::unweightedSSSP(int s) const
 {
     const int INF=1e9; 
@@ -284,6 +289,7 @@ pair<vector<int>, vector<int>> Graph::unweightedSSSP(int s) const
     queue<int> q; 
     dist[s]=0; 
     q.push(s);
+
     while(!q.empty())
     {
         int u=q.front();
@@ -301,12 +307,12 @@ pair<vector<int>, vector<int>> Graph::unweightedSSSP(int s) const
             }    
         }
     }
+
     return {dist, par};
 }
 
 
 
-// ===== C: Dijkstra (non-negative weights) =====
 pair<vector<long long>, vector<int>> Graph::dijkstra(int s) const
 {
     const long long INF=(1LL<<60); 
@@ -353,7 +359,6 @@ pair<vector<long long>, vector<int>> Graph::dijkstra(int s) const
 
 
 
-// ===== C: Floyd–Warshall =====
 vector<vector<long long>> Graph::floydWarshall(long long INF) const
 {
     vector<vector<long long>> D(n_, vector<long long>(n_, INF));
@@ -361,6 +366,7 @@ vector<vector<long long>> Graph::floydWarshall(long long INF) const
     {
         D[i][i]=0;
     }
+
     for(int u=0;u<n_;++u)
     {   
         for(const auto &e: adj_[u]) 
@@ -371,6 +377,7 @@ vector<vector<long long>> Graph::floydWarshall(long long INF) const
             }
         } 
     }  
+
     for(int k=0;k<n_;++k)
     {
         for(int i=0;i<n_;++i)
@@ -392,7 +399,8 @@ vector<vector<long long>> Graph::floydWarshall(long long INF) const
     return D;
 }
 
-// ===== C: Ford–Fulkerson (Edmonds–Karp) =====
+
+
 long long Graph::maxFlowEdmondsKarp(int s, int t)
 {
     vector<vector<Edge>> res(n_);
@@ -415,6 +423,7 @@ long long Graph::maxFlowEdmondsKarp(int s, int t)
     } 
 
     long long flow=0;
+
     while(true)
     {
         vector<int> parV(n_,-1), parE(n_,-1);
@@ -441,11 +450,13 @@ long long Graph::maxFlowEdmondsKarp(int s, int t)
                 }
             }
         }
+
         if(parV[t]==-1)
         {
-            break; // no augmenting path
+            break; // no aug
         } 
         long long aug=LLONG_MAX;
+
         for(int v=t; v!=s; v=parV[v])
         { 
             auto &e=res[parV[v]][parE[v]]; 
@@ -462,10 +473,12 @@ long long Graph::maxFlowEdmondsKarp(int s, int t)
     lastResidual_ = move(res); 
     lastS_=s; lastT_=t; 
     lastMaxFlow_=flow;
+
     return flow;
 }
 
-// ===== B: Prim's MST (undirected) =====
+
+
 pair<long long, vector<tuple<int,int,long long>>> Graph::primMST(int start) const
 {
     if(directed_)
@@ -476,12 +489,15 @@ pair<long long, vector<tuple<int,int,long long>>> Graph::primMST(int start) cons
     {
         return {0,{}};
     }
+
     vector<char> vis(n_,0); 
     using T=tuple<long long,int,int>;
     priority_queue<T, vector<T>, greater<T>> pq;
+
     auto push=[&](int u)
     {
         vis[u]=1;
+        
         for(const auto &e: adj_[u]) 
         {
             if(e.cap<0)
@@ -568,43 +584,59 @@ pair<long long, vector<tuple<int,int,long long>>> Graph::kruskalMST() const
 
 
 // ===== DOT write/read =====
-void Graph::writeDOT(const string& filename, const string& title, bool includeWeights) const
-{
-    ofstream out(filename); 
-    if(!out) 
-    {
-        throw runtime_error("Cannot open "+filename);
-    }
-    if(directed_) 
-    {
-        out << "strict digraph \"" << (title.empty()?"G":title) << "\" {\n\n";
-    }
-    else 
-    {
-        out << "graph {\n\n";
-    }
-    out << "    rankdir=LR;\n";
-    for(int u=0;u<n_;++u)
-    {
-        for(const auto &e: adj_[u]) 
-        {
-            if(e.cap<0)
-            {
-                if(!directed_ && u>e.to) 
-                {
-                    continue; // avoid dup in undirected
-                }
-                out << "    " << u << (directed_?" -> ":" -- ") << e.to;
-                if(includeWeights)
-                {
-                    out << " [label=\"" << (e.w>=0?e.w:1) << "\"]";
-                }  
-                out << "\n\n";
-            }
-        }
-    }
-    out << "}\n";
-}
+// void Graph::writeDOT(const string& filename, const string& title, bool includeWeights) const
+// {
+//     ofstream out(filename);
+//     if(!out)
+//     {
+//         throw runtime_error("Cannot open " + filename);
+//     }
+
+//     if(directed_)
+//         out << "strict digraph \"" << (title.empty() ? "G" : title) << "\" {\n\n";
+//     else
+//         out << "graph \"" << (title.empty() ? "G" : title) << "\" {\n\n";
+
+//     out << "    rankdir=LR;\n";
+
+//     for(int u = 0; u < n_; ++u)
+//     {
+//         // ✅ copy + sort adjacency list for this node
+//         vector<Edge> sortedAdj = adj_[u];
+
+//         sort(sortedAdj.begin(), sortedAdj.end(),
+//             [](const Edge& a, const Edge& b)
+//             {
+//                 // primary: destination node
+//                 // secondary: weight (uncomment if desired)
+//                 // if (a.to == b.to) return a.w < b.w;
+//                 return a.to < b.to;
+//             });
+
+//         for(const auto &e : sortedAdj)
+//         {
+//             // ignore flow-internal or reverse edges (your condition)
+//             if(e.cap < 0)
+//             {
+//                 // avoid duplicates in undirected
+//                 if(!directed_ && u > e.to)
+//                     continue;
+
+//                 out << "    " << u
+//                     << (directed_ ? " -> " : " -- ")
+//                     << e.to;
+
+//                 if(includeWeights)
+//                     out << " [label=\"" << (e.w >= 0 ? e.w : 1) << "\"]";
+
+//                 out << "\n\n";
+//             }
+//         }
+//     }
+
+//     out << "}\n";
+// }
+
 
 // --- helper (only include if you don't already have it) ---
 static long long extract_label_weight(const std::string& attrs) {
@@ -614,6 +646,7 @@ static long long extract_label_weight(const std::string& attrs) {
     if (std::regex_search(attrs, m, labRe)) return std::stoll(m[1]);
     return 1;
 }
+
 
 Graph Graph::readDirectedDOT(const std::string& filename, bool labelIsCapacity)
 {
@@ -696,10 +729,14 @@ Graph Graph::readUndirectedDOT(const string& filename)
     return g;
 }
 
+void Graph::loadFromDOT(const std::string& filename, bool directed, bool labelIsCapacity)
+{
+    Graph tmp = directed
+        ? Graph::readDirectedDOT(filename, labelIsCapacity)
+        : Graph::readUndirectedDOT(filename);
 
-
-
-
+    *this = std::move(tmp);
+}
 
 
 // ===== Flow result DOT =====
@@ -962,3 +999,103 @@ void Graph::printEulerResult() const {
 }
  
 
+
+bool Graph::writePNG(const std::string& dotFile, const std::string& pngFile) const
+{
+    // Build dot command
+    std::string cmd = "dot -Tpng \"" + dotFile + "\" -o \"" + pngFile + "\"";
+
+    int result = system(cmd.c_str());
+
+    if (result != 0) {
+        std::cerr << "Error: Failed to generate PNG. Make sure Graphviz is installed.\n";
+        return false;
+    }
+
+    return true;
+}
+
+
+void Graph::writeDOTDirectedStrict(const std::string& filename,
+                                   const std::string& title) const
+{
+    std::ofstream out(filename);
+    if (!out) throw std::runtime_error("Cannot open " + filename);
+
+    out << "strict digraph \"" << (title.empty() ? "DirectedGraph" : title) << "\" {\n";
+    out << "    rankdir=LR;\n\n";
+
+    for (int u = 0; u < n_; ++u)
+    {
+        // Sort by destination, then by cap (for stable output)
+        std::vector<Edge> sorted = adj_[u];
+        std::sort(sorted.begin(), sorted.end(),
+                  [](const Edge& a, const Edge& b){
+                      if (a.to != b.to) return a.to < b.to;
+                      return a.cap < b.cap;
+                  });
+
+        for (const auto& e : sorted)
+        {
+            // Skip residual/zero-cap edges; print only real forward edges
+            if (e.cap == 0) continue;
+
+            long long lbl = e.cap;                 // <-- label from capacity for directed graphs
+            if (lbl < 0) lbl = 1;                  // (safety, in case of -1 placeholders)
+
+            out << "    " << u << " -> " << e.to
+                << " [label=\"" << lbl << "\"];\n";
+        }
+    }
+
+    out << "}\n";
+}
+
+
+void Graph::writeDOTUndirectedExpanded(const std::string& filename) const
+{
+    std::ofstream out(filename);
+    if (!out) throw std::runtime_error("Cannot open " + filename);
+
+    out << "graph {\n";
+    out << "        rankdir=LR;\n";
+
+    // Track which unordered pairs have been emitted: (min(u,v), max(u,v))
+    std::set<std::pair<int,int>> emitted;
+
+    for (int u = 0; u < n_; ++u)
+    {
+        std::vector<Edge> sorted = adj_[u];
+        std::sort(sorted.begin(), sorted.end(),
+                  [](const Edge& a, const Edge& b){
+                      if (a.to != b.to) return a.to < b.to;
+                      return a.w < b.w;
+                  });
+
+        for (const auto& e : sorted)
+        {
+            if (e.cap == 0) continue;               // skip residuals if you have them
+
+            int a = std::min(u, e.to), b = std::max(u, e.to);
+            if (!emitted.insert({a, b}).second)      // already printed the mirror
+                continue;
+
+            long long lbl = e.w;                     // use stored weight
+            if (lbl < 0) lbl = 1;                    // optional safety
+
+            out << "        " << a << " -- " << b
+                << " [label=\"" << lbl << "\"]\n";
+        }
+    }
+
+    out << "}\n";
+}
+
+
+void Graph::writeDOT(const std::string& filename,
+                     const std::string& title,
+                     bool directed) const
+{
+    if (directed) writeDOTDirectedStrict(filename, title);
+    else          writeDOTUndirectedExpanded(filename);
+}

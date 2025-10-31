@@ -31,9 +31,8 @@ class Graph
         pair<long long,vector<tuple<int,int,long long>>> primMST(int start=0) const;
         pair<long long,vector<tuple<int,int,long long>>> kruskalMST() const;
 
-        void writeDOT(const string& filename,const string& title="",bool includeWeights=true) const;
-        static Graph readDirectedDOT(const std::string& filename, bool labelIsCapacity=false);
-        static Graph readUndirectedDOT(const std::string& filename);
+        //void writeDOT(const string& filename,const string& title="",bool includeWeights=true) const;
+        
         void writeLastFlowDOT(const string& filename) const;
 
         static vector<int> restorePath(int s,int t,const vector<int>& par);
@@ -41,6 +40,9 @@ class Graph
         std::pair<std::vector<long long>, std::vector<int>> dialSSSP(int s, int maxW) const;
         std::vector<int> fleuryEulerTrailOrCircuit() const;
         void printEulerResult() const; 
+        void loadFromDOT(const std::string& filename, bool directed = true, bool labelIsCapacity = false);
+        bool writePNG(const std::string& dotFile, const std::string& pngFile) const;
+        void writeDOT(const std::string& filename, const std::string& title = "", bool directed = false) const;
 
 
 
@@ -48,6 +50,12 @@ class Graph
         int n_; bool directed_; vector<vector<Edge>> adj_;
         mutable vector<vector<Edge>> lastResidual_{}; mutable int lastS_{-1}, lastT_{-1}; mutable long long lastMaxFlow_{0};
         size_t edgesCount() const;
+        static Graph readDirectedDOT(const std::string& filename, bool labelIsCapacity=false);
+        static Graph readUndirectedDOT(const std::string& filename);
+        void writeDOTUndirectedExpanded(const std::string& filename) const;
+        void writeDOTDirectedStrict(const std::string& filename,
+                            const std::string& title) const;
+
 };
 
 #endif
